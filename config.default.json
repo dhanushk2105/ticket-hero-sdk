@@ -21,5 +21,11 @@
       "colorTheme": "default",
       "useEmojis": true,
       "showProgressBar": true
-    }
+    },
+    "jira": {
+    "enabled": false,
+    "updateTicketOnComplete": true,
+    "autoImport": false,
+    "autoImportFrequencyInHours": 24
+  }
   }
