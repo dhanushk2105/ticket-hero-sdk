@@ -102,7 +102,17 @@ All data is stored locally in a JSON file (`ticket-hero-data.json` by default). 
 
 ## Screenshots
 
-(Add screenshots of your application here)
+### Main Menu
+![Ticket Hero Main Menu](./assets/ticket-hero-main.png)
+
+### Dashboard View
+![Ticket Hero Dashboard](./assets/ticket-hero-dashboard.png)
+
+### Pomodoro Timer
+![Ticket Hero Timer](./assets/ticket-hero-timer.png)
+
+### Ticket View
+![Ticket Hero Ticket View](./assets/ticket-hero-view.png)
 
 ## Credits
 
