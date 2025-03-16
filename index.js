@@ -6,13 +6,18 @@ const readline = require('readline');
 const chalk = require('chalk');
 const figlet = require('figlet');
 const cliProgress = require('cli-progress');
+const jiraHelper = require('./jira-helper');
+const configHelper = require('./config-helper');
 
-// Constants
-const DATA_FILE = 'ticket-hero-data.json';
-const WORK_DURATION = 25; // minutes
-const SHORT_BREAK_DURATION = 5; // minutes
-const LONG_BREAK_DURATION = 15; // minutes
-const POMODOROS_BEFORE_LONG_BREAK = 4;
+// Load configuration
+let config = configHelper.loadConfig();
+
+// Constants from config
+const WORK_DURATION = config.pomodoro.workDuration;
+const SHORT_BREAK_DURATION = config.pomodoro.shortBreakDuration;
+const LONG_BREAK_DURATION = config.pomodoro.longBreakDuration;
+const POMODOROS_BEFORE_LONG_BREAK = config.pomodoro.longBreakInterval;
+const DATA_FILE = config.app.dataFile;
 
 // Data structure
 let userData = {
@@ -77,7 +82,7 @@ function updateXP(ticket, actualTime) {
   const overtime = Math.max(0, actualTime - allocatedTime);
   
   // Base XP for completing a ticket
-  let xpEarned = ticket.storyPoints * 10;
+  let xpEarned = ticket.storyPoints * config.xp.baseXpPerStoryPoint;
   
   // XP penalty for overtime
   if (overtime > 0) {
@@ -88,7 +93,7 @@ function updateXP(ticket, actualTime) {
     console.log(chalk.yellow(`⚠️ Overtime penalty: -${penalty} XP (${penaltyPercentage}% penalty)`));
   } else {
     // Bonus for finishing early
-    const earlyBonus = Math.floor(xpEarned * 0.2);
+    const earlyBonus = Math.floor(xpEarned * (config.xp.earlyCompletionBonusPercent / 100));
     xpEarned += earlyBonus;
     console.log(chalk.green(`🎉 Early completion bonus: +${earlyBonus} XP`));
   }
@@ -96,7 +101,7 @@ function updateXP(ticket, actualTime) {
   userData.user.xp += xpEarned;
   
   // Level up if XP threshold reached
-  const xpThreshold = userData.user.level * 100;
+  const xpThreshold = userData.user.level * config.xp.xpLevelThresholdMultiplier;
   if (userData.user.xp >= xpThreshold) {
     userData.user.level += 1;
     console.log(chalk.magenta(`🏆 LEVEL UP! You are now level ${userData.user.level}!`));
@@ -135,7 +140,9 @@ function showMainMenu() {
   console.log(chalk.white('4.'), chalk.green('View Dashboard'));
   console.log(chalk.white('5.'), chalk.green('Edit Ticket'));
   console.log(chalk.white('6.'), chalk.green('User Profile'));
-  console.log(chalk.white('7.'), chalk.green('Exit'));
+  console.log(chalk.white('7.'), chalk.green('Jira Integration'));
+  console.log(chalk.white('8.'), chalk.green('Settings'));
+  console.log(chalk.white('9.'), chalk.green('Exit'));
 
   rl.question(chalk.yellow('\nSelect option: '), (answer) => {
     switch (answer) {
@@ -158,12 +165,188 @@ function showMainMenu() {
         userProfile();
         break;
       case '7':
+        jiraIntegration();
+        break;
+      case '8':
+        settings();
+        break;
+      case '9':
         console.log(chalk.green('\nThanks for using Ticket Hero! Goodbye!'));
         rl.close();
         break;
       default:
         console.log(chalk.red('\nInvalid option!'));
         setTimeout(showMainMenu, 1000);
+    }
+  });
+}
+
+// Settings menu
+function settings() {
+  console.clear();
+  console.log(chalk.bold.blue('===== Settings =====\n'));
+  
+  console.log(chalk.bold.white('Pomodoro Settings:'));
+  console.log(chalk.white(`1. Work Duration: ${config.pomodoro.workDuration} minutes`));
+  console.log(chalk.white(`2. Short Break Duration: ${config.pomodoro.shortBreakDuration} minutes`));
+  console.log(chalk.white(`3. Long Break Duration: ${config.pomodoro.longBreakDuration} minutes`));
+  console.log(chalk.white(`4. Pomodoros Before Long Break: ${config.pomodoro.longBreakInterval}`));
+  console.log(chalk.white(`5. Auto-start Breaks: ${config.pomodoro.autoStartBreaks ? 'Enabled' : 'Disabled'}`));
+  console.log(chalk.white(`6. Auto-start Pomodoros: ${config.pomodoro.autoStartPomodoros ? 'Enabled' : 'Disabled'}`));
+  
+  console.log(chalk.bold.white('\nXP Settings:'));
+  console.log(chalk.white(`7. Base XP per Story Point: ${config.xp.baseXpPerStoryPoint}`));
+  console.log(chalk.white(`8. Early Completion Bonus: ${config.xp.earlyCompletionBonusPercent}%`));
+  
+  console.log(chalk.bold.white('\nJira Settings:'));
+  console.log(chalk.white(`9. Jira Integration: ${config.jira?.enabled ? 'Enabled' : 'Disabled'}`));
+  
+  console.log(chalk.bold.white('\nOptions:'));
+  console.log(chalk.white('0.'), chalk.green('Return to Main Menu'));
+  
+  rl.question(chalk.yellow('\nSelect setting to change (0-9): '), (answer) => {
+    if (answer === '0') {
+      showMainMenu();
+      return;
+    }
+    
+    const settingIndex = parseInt(answer, 10);
+    if (isNaN(settingIndex) || settingIndex < 1 || settingIndex > 9) {
+      console.log(chalk.red('\nInvalid option!'));
+      setTimeout(settings, 1000);
+      return;
+    }
+    
+    switch (settingIndex) {
+      case 1:
+        rl.question(chalk.yellow('Enter new Work Duration (minutes): '), (value) => {
+          const newValue = parseInt(value, 10);
+          if (!isNaN(newValue) && newValue > 0) {
+            config.pomodoro.workDuration = newValue;
+            configHelper.saveConfig(config);
+            console.log(chalk.green('\n✓ Setting updated!'));
+          } else {
+            console.log(chalk.red('\n✗ Invalid value. Setting not changed.'));
+          }
+          setTimeout(settings, 1500);
+        });
+        break;
+      case 2:
+        rl.question(chalk.yellow('Enter new Short Break Duration (minutes): '), (value) => {
+          const newValue = parseInt(value, 10);
+          if (!isNaN(newValue) && newValue > 0) {
+            config.pomodoro.shortBreakDuration = newValue;
+            configHelper.saveConfig(config);
+            console.log(chalk.green('\n✓ Setting updated!'));
+          } else {
+            console.log(chalk.red('\n✗ Invalid value. Setting not changed.'));
+          }
+          setTimeout(settings, 1500);
+        });
+        break;
+      case 3:
+        rl.question(chalk.yellow('Enter new Long Break Duration (minutes): '), (value) => {
+          const newValue = parseInt(value, 10);
+          if (!isNaN(newValue) && newValue > 0) {
+            config.pomodoro.longBreakDuration = newValue;
+            configHelper.saveConfig(config);
+            console.log(chalk.green('\n✓ Setting updated!'));
+          } else {
+            console.log(chalk.red('\n✗ Invalid value. Setting not changed.'));
+          }
+          setTimeout(settings, 1500);
+        });
+        break;
+      case 4:
+        rl.question(chalk.yellow('Enter new Pomodoros Before Long Break: '), (value) => {
+          const newValue = parseInt(value, 10);
+          if (!isNaN(newValue) && newValue > 0) {
+            config.pomodoro.longBreakInterval = newValue;
+            configHelper.saveConfig(config);
+            console.log(chalk.green('\n✓ Setting updated!'));
+          } else {
+            console.log(chalk.red('\n✗ Invalid value. Setting not changed.'));
+          }
+          setTimeout(settings, 1500);
+        });
+        break;
+      case 5:
+        rl.question(chalk.yellow(`Auto-start Breaks (y/n, currently ${config.pomodoro.autoStartBreaks ? 'y' : 'n'}): `), (value) => {
+          if (value.toLowerCase() === 'y' || value.toLowerCase() === 'n') {
+            config.pomodoro.autoStartBreaks = (value.toLowerCase() === 'y');
+            configHelper.saveConfig(config);
+            console.log(chalk.green('\n✓ Setting updated!'));
+          } else {
+            console.log(chalk.red('\n✗ Invalid value. Setting not changed.'));
+          }
+          setTimeout(settings, 1500);
+        });
+        break;
+      case 6:
+        rl.question(chalk.yellow(`Auto-start Pomodoros (y/n, currently ${config.pomodoro.autoStartPomodoros ? 'y' : 'n'}): `), (value) => {
+          if (value.toLowerCase() === 'y' || value.toLowerCase() === 'n') {
+            config.pomodoro.autoStartPomodoros = (value.toLowerCase() === 'y');
+            configHelper.saveConfig(config);
+            console.log(chalk.green('\n✓ Setting updated!'));
+          } else {
+            console.log(chalk.red('\n✗ Invalid value. Setting not changed.'));
+          }
+          setTimeout(settings, 1500);
+        });
+        break;
+      case 7:
+        rl.question(chalk.yellow('Enter new Base XP per Story Point: '), (value) => {
+          const newValue = parseInt(value, 10);
+          if (!isNaN(newValue) && newValue > 0) {
+            config.xp.baseXpPerStoryPoint = newValue;
+            configHelper.saveConfig(config);
+            console.log(chalk.green('\n✓ Setting updated!'));
+          } else {
+            console.log(chalk.red('\n✗ Invalid value. Setting not changed.'));
+          }
+          setTimeout(settings, 1500);
+        });
+        break;
+      case 8:
+        rl.question(chalk.yellow('Enter new Early Completion Bonus (%): '), (value) => {
+          const newValue = parseInt(value, 10);
+          if (!isNaN(newValue) && newValue >= 0) {
+            config.xp.earlyCompletionBonusPercent = newValue;
+            configHelper.saveConfig(config);
+            console.log(chalk.green('\n✓ Setting updated!'));
+          } else {
+            console.log(chalk.red('\n✗ Invalid value. Setting not changed.'));
+          }
+          setTimeout(settings, 1500);
+        });
+        break;
+      case 9:
+        rl.question(chalk.yellow(`Enable Jira Integration (y/n, currently ${config.jira?.enabled ? 'y' : 'n'}): `), (value) => {
+          if (value.toLowerCase() === 'y' || value.toLowerCase() === 'n') {
+            if (!config.jira) config.jira = {};
+            config.jira.enabled = (value.toLowerCase() === 'y');
+            configHelper.saveConfig(config);
+            console.log(chalk.green('\n✓ Setting updated!'));
+            
+            if (config.jira.enabled) {
+              console.log(chalk.blue('\nWould you like to configure Jira connection now?'));
+              rl.question(chalk.yellow('Configure Jira now? (y/n): '), async (configAnswer) => {
+                if (configAnswer.toLowerCase() === 'y') {
+                  await jiraHelper.setupJira(rl);
+                }
+                setTimeout(settings, 1500);
+              });
+            } else {
+              setTimeout(settings, 1500);
+            }
+          } else {
+            console.log(chalk.red('\n✗ Invalid value. Setting not changed.'));
+            setTimeout(settings, 1500);
+          }
+        });
+        break;
+      default:
+        setTimeout(settings, 1000);
     }
   });
 }
@@ -683,10 +866,38 @@ function startPomodoro(ticket) {
       console.log(chalk.green(`Completed ${Math.abs(overtime).toFixed(1)} minutes under allocated time!`));
     }
     
-    // Reset the readline interface for the confirmation prompt
-    rl.question(chalk.yellow('\nPress Enter to return to main menu...'), () => {
-      showMainMenu();
-    });
+    // Update Jira if enabled and ticket has Jira ID
+    if (config.jira?.enabled && ticket.jiraId) {
+      console.log(chalk.blue('\nThis ticket is linked to Jira. Would you like to update its status in Jira?'));
+      console.log(chalk.white('y.'), chalk.green('Yes, mark as Done in Jira'));
+      console.log(chalk.white('n.'), chalk.yellow('No, just update locally'));
+      
+      rl.question(chalk.yellow('\nUpdate Jira? (y/n): '), async (answer) => {
+        if (answer.toLowerCase() === 'y') {
+          console.log(chalk.blue('\nUpdating Jira ticket status...'));
+          
+          const result = await jiraHelper.updateTicketStatus(ticket.jiraId, 'Done');
+          
+          if (result.success) {
+            console.log(chalk.green(`\n✓ ${result.message}`));
+          } else {
+            console.log(chalk.red(`\n✗ Error: ${result.message}`));
+          }
+        }
+        
+        // Reset the readline interface for the confirmation prompt
+        console.log(chalk.yellow('\nPress Enter to return to main menu...'));
+        rl.question('', () => {
+          showMainMenu();
+        });
+      });
+    } else {
+      // Reset the readline interface for the confirmation prompt
+      console.log(chalk.yellow('\nPress Enter to return to main menu...'));
+      rl.question('', () => {
+        showMainMenu();
+      });
+    }
   }
   
   // Cleanup function
@@ -774,6 +985,312 @@ function showDashboard() {
   console.log(chalk.gray('\nPress Enter to return to main menu...'));
   rl.question('', () => {
     showMainMenu();
+  });
+}
+
+// Jira integration function
+async function jiraIntegration() {
+  console.clear();
+  console.log(chalk.bold.blue('===== Jira Integration =====\n'));
+  
+  if (!config.jira?.enabled) {
+    console.log(chalk.yellow('Jira integration is currently disabled in settings.'));
+    console.log(chalk.yellow('Go to Settings > Jira Settings to enable it.'));
+    console.log(chalk.gray('\nPress Enter to return to main menu...'));
+    rl.question('', () => {
+      showMainMenu();
+    });
+    return;
+  }
+  
+  let isConnected = await jiraHelper.initialize();
+  
+  if (!isConnected) {
+    console.log(chalk.yellow('Jira connection not set up. Let\'s configure it now.'));
+    isConnected = await jiraHelper.setupJira(rl);
+  }
+  
+  if (!isConnected) {
+    console.log(chalk.red('\nFailed to connect to Jira.'));
+    console.log(chalk.gray('\nPress Enter to return to main menu...'));
+    rl.question('', () => {
+      showMainMenu();
+    });
+    return;
+  }
+  
+  console.log(chalk.bold.white('\nJira Options:'));
+  console.log(chalk.white('1.'), chalk.green('Import Tickets from Jira'));
+  console.log(chalk.white('2.'), chalk.green('Update Jira Ticket Status'));
+  console.log(chalk.white('3.'), chalk.green('Setup/Change Jira Connection'));
+  console.log(chalk.white('4.'), chalk.green('Return to Main Menu'));
+  
+  rl.question(chalk.yellow('\nSelect option: '), async (answer) => {
+    switch (answer) {
+      case '1':
+        await importTicketsFromJira();
+        break;
+      case '2':
+        await updateJiraTicketStatus();
+        break;
+      case '3':
+        await jiraHelper.setupJira(rl);
+        setTimeout(jiraIntegration, 1500);
+        break;
+      case '4':
+        showMainMenu();
+        break;
+      default:
+        console.log(chalk.red('\nInvalid option!'));
+        setTimeout(jiraIntegration, 1000);
+    }
+  });
+}
+
+// Function to import tickets from Jira
+async function importTicketsFromJira() {
+  console.clear();
+  console.log(chalk.bold.green('===== Import Tickets from Jira =====\n'));
+  
+  console.log(chalk.blue('Fetching your tickets from Jira...'));
+  
+  const result = await jiraHelper.getMyTickets();
+  
+  if (!result.success) {
+    console.log(chalk.red(`\n✗ Error: ${result.message}`));
+    console.log(chalk.gray('\nPress Enter to return to Jira menu...'));
+    rl.question('', () => {
+      jiraIntegration();
+    });
+    return;
+  }
+  
+  if (result.tickets.length === 0) {
+    console.log(chalk.yellow('\nNo tickets assigned to you in Jira.'));
+    console.log(chalk.gray('\nPress Enter to return to Jira menu...'));
+    rl.question('', () => {
+      jiraIntegration();
+    });
+    return;
+  }
+  
+  console.log(chalk.green(`\n✓ Found ${result.tickets.length} tickets assigned to you!\n`));
+  
+  // Display tickets
+  console.log(chalk.bold.white('Your Jira Tickets:'));
+  result.tickets.forEach((ticket, index) => {
+    console.log(chalk.white(`${index + 1}.`), chalk.green(`${ticket.name}`), 
+                chalk.gray(`(${ticket.type}, ${ticket.status}, SP: ${ticket.storyPoints})`));
+  });
+  
+  // Ask which tickets to import
+  console.log(chalk.bold.white('\nSelect tickets to import:'));
+  console.log(chalk.white('a.'), chalk.green('Import all tickets'));
+  console.log(chalk.white('s.'), chalk.green('Select specific tickets'));
+  console.log(chalk.white('c.'), chalk.green('Cancel import'));
+  
+  rl.question(chalk.yellow('\nChoose option: '), (answer) => {
+    if (answer.toLowerCase() === 'a') {
+      // Import all tickets
+      result.tickets.forEach(ticket => {
+        const newTicket = {
+          id: Date.now().toString(),
+          name: ticket.name,
+          jiraId: ticket.id,
+          jiraUrl: ticket.jiraUrl,
+          storyPoints: ticket.storyPoints,
+          allocatedTime: ticket.allocatedTime,
+          timeSpent: 0,
+          completed: false,
+          createdAt: new Date().toISOString()
+        };
+        
+        userData.tickets.push(newTicket);
+      });
+      
+      calculatePendingStats();
+      saveData();
+      console.log(chalk.green(`\n✓ Successfully imported ${result.tickets.length} tickets!`));
+      
+      console.log(chalk.gray('\nPress Enter to return to Jira menu...'));
+      rl.question('', () => {
+        jiraIntegration();
+      });
+    } else if (answer.toLowerCase() === 's') {
+      selectTicketsToImport(result.tickets);
+    } else {
+      jiraIntegration();
+    }
+  });
+}
+
+// Function to let user select which tickets to import
+function selectTicketsToImport(tickets) {
+  console.clear();
+  console.log(chalk.bold.green('===== Select Tickets to Import =====\n'));
+  
+  console.log(chalk.blue('Enter ticket numbers separated by commas (e.g., 1,3,5)'));
+  console.log(chalk.blue('or ranges (e.g., 1-5) to select tickets to import.\n'));
+  
+  // Display tickets
+  tickets.forEach((ticket, index) => {
+    console.log(chalk.white(`${index + 1}.`), chalk.green(`${ticket.name}`), 
+                chalk.gray(`(${ticket.type}, ${ticket.status}, SP: ${ticket.storyPoints})`));
+  });
+  
+  rl.question(chalk.yellow('\nEnter selection: '), (answer) => {
+    const selectedIndices = parseSelectionString(answer, tickets.length);
+    
+    if (selectedIndices.length === 0) {
+      console.log(chalk.red('\nNo valid tickets selected.'));
+      setTimeout(() => selectTicketsToImport(tickets), 1500);
+      return;
+    }
+    
+    const selectedTickets = selectedIndices.map(index => tickets[index]);
+    
+    // Import selected tickets
+    selectedTickets.forEach(ticket => {
+      const newTicket = {
+        id: Date.now().toString(),
+        name: ticket.name,
+        jiraId: ticket.id,
+        jiraUrl: ticket.jiraUrl,
+        storyPoints: ticket.storyPoints,
+        allocatedTime: ticket.allocatedTime,
+        timeSpent: 0,
+        completed: false,
+        createdAt: new Date().toISOString()
+      };
+      
+      userData.tickets.push(newTicket);
+    });
+    
+    calculatePendingStats();
+    saveData();
+    console.log(chalk.green(`\n✓ Successfully imported ${selectedTickets.length} tickets!`));
+    
+    console.log(chalk.gray('\nPress Enter to return to Jira menu...'));
+    rl.question('', () => {
+      jiraIntegration();
+    });
+  });
+}
+
+// Helper function to parse selection string like "1,3,5-7"
+function parseSelectionString(selectionStr, maxLength) {
+  const indices = new Set();
+  
+  // Split by comma
+  const parts = selectionStr.split(',');
+  
+  parts.forEach(part => {
+    part = part.trim();
+    
+    // Check if it's a range (e.g., "1-5")
+    if (part.includes('-')) {
+      const [start, end] = part.split('-').map(Number);
+      
+      if (!isNaN(start) && !isNaN(end)) {
+        for (let i = start; i <= end; i++) {
+          if (i > 0 && i <= maxLength) {
+            indices.add(i - 1); // Convert to 0-based index
+          }
+        }
+      }
+    } else {
+      // Single number
+      const index = parseInt(part, 10);
+      if (!isNaN(index) && index > 0 && index <= maxLength) {
+        indices.add(index - 1); // Convert to 0-based index
+      }
+    }
+  });
+  
+  return Array.from(indices);
+}
+
+// Function to update Jira ticket status
+async function updateJiraTicketStatus() {
+  console.clear();
+  console.log(chalk.bold.yellow('===== Update Jira Ticket Status =====\n'));
+  
+  // Find tickets that have Jira IDs
+  const jiraTickets = userData.tickets.filter(ticket => ticket.jiraId);
+  
+  if (jiraTickets.length === 0) {
+    console.log(chalk.yellow('No tickets linked to Jira found.'));
+    console.log(chalk.gray('\nPress Enter to return to Jira menu...'));
+    rl.question('', () => {
+      jiraIntegration();
+    });
+    return;
+  }
+  
+  console.log(chalk.blue('Select a ticket to update in Jira:'));
+  jiraTickets.forEach((ticket, index) => {
+    const status = ticket.completed ? chalk.green('Completed') : chalk.yellow('Pending');
+    console.log(chalk.white(`${index + 1}.`), chalk.green(`${ticket.name}`), 
+                chalk.gray(`(Local status: ${status})`));
+  });
+  
+  rl.question(chalk.yellow('\nSelect ticket number or 0 to cancel: '), async (answer) => {
+    const ticketIndex = parseInt(answer, 10) - 1;
+    
+    if (isNaN(ticketIndex) || ticketIndex < 0 || ticketIndex >= jiraTickets.length) {
+      jiraIntegration();
+      return;
+    }
+    
+    const ticket = jiraTickets[ticketIndex];
+    console.log(chalk.blue(`\nSelected ticket: ${ticket.name}`));
+    
+    console.log(chalk.bold.white('\nSelect target status:'));
+    console.log(chalk.white('1.'), chalk.green('In Progress'));
+    console.log(chalk.white('2.'), chalk.green('Done'));
+    console.log(chalk.white('3.'), chalk.yellow('Blocked'));
+    console.log(chalk.white('4.'), chalk.white('Cancel'));
+    
+    rl.question(chalk.yellow('\nSelect status: '), async (statusAnswer) => {
+      let targetStatus;
+      switch (statusAnswer) {
+        case '1':
+          targetStatus = 'In Progress';
+          break;
+        case '2':
+          targetStatus = 'Done';
+          break;
+        case '3':
+          targetStatus = 'Blocked';
+          break;
+        default:
+          jiraIntegration();
+          return;
+      }
+      
+      console.log(chalk.blue(`\nUpdating ticket status to "${targetStatus}"...`));
+      
+      const result = await jiraHelper.updateTicketStatus(ticket.jiraId, targetStatus);
+      
+      if (result.success) {
+        console.log(chalk.green(`\n✓ ${result.message}`));
+        
+        // If status updated to Done, also mark as completed locally
+        if (targetStatus === 'Done' && !ticket.completed) {
+          ticket.completed = true;
+          ticket.completedAt = new Date().toISOString();
+          saveData();
+          console.log(chalk.green('✓ Local ticket status also updated to completed'));
+        }
+      } else {
+        console.log(chalk.red(`\n✗ Error: ${result.message}`));
+      }
+      
+      console.log(chalk.gray('\nPress Enter to return to Jira menu...'));
+      rl.question('', () => {
+        jiraIntegration();
+      });
+    });
   });
 }
 
