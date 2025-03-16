@@ -1,0 +1,48 @@
+{
+    "name": "ticket-hero-sdk",
+    "version": "1.0.0",
+    "description": "A Pomodoro App for Jira Users",
+    "main": "index.js",
+    "scripts": {
+        "start": "node index.js",
+        "build": "pkg -t node16-win,node16-macos,node16-linux index.js"
+    },
+    "keywords": [
+        "pomodoro",
+        "jira",
+        "productivity",
+        "timer",
+        "task-management",
+        "time-tracking"
+    ],
+    "bin": {
+        "ticket-hero": "./index.js"
+    },
+    "author": "dhanushk2105",
+    "license": "MIT",
+    "dependencies": {
+        "chalk": "^4.1.2",
+        "cli-progress": "^3.12.0",
+        "cli-table3": "^0.6.3",
+        "figlet": "^1.8.0",
+        "ora": "^5.4.1"
+    },
+    "devDependencies": {
+        "chai": "^4.5.0",
+        "mocha": "^10.8.2",
+        "pkg": "^5.8.1",
+        "rewire": "^6.0.0",
+        "sinon": "^15.2.0"
+    },
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/dhanushk2105/ticket-hero-sdk.git"
+    },
+    "bugs": {
+        "url": "https://github.com/dhanushk2105/ticket-hero-sdk/issues"
+    },
+    "homepage": "https://github.com/dhanushk2105/ticket-hero-sdk#readme",
+    "engines": {
+        "node": ">=14.0.0"
+    }
+}

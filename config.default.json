@@ -1,0 +1,25 @@
+{
+    "pomodoro": {
+      "workDuration": 25,
+      "shortBreakDuration": 5,
+      "longBreakDuration": 15,
+      "longBreakInterval": 4,
+      "autoStartBreaks": true,
+      "autoStartPomodoros": false
+    },
+    "xp": {
+      "baseXpPerStoryPoint": 10,
+      "earlyCompletionBonusPercent": 20,
+      "xpLevelThresholdMultiplier": 100
+    },
+    "app": {
+      "dataFile": "ticket-hero-data.json",
+      "backupFrequencyInHours": 24,
+      "maxBackups": 5
+    },
+    "ui": {
+      "colorTheme": "default",
+      "useEmojis": true,
+      "showProgressBar": true
+    }
+  }
